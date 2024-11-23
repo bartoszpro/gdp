@@ -1,101 +1,145 @@
-import Image from "next/image";
+'use client';
+
+import { useEffect, useRef, useState } from "react";
+import * as d3 from "d3";
+import { feature } from "topojson-client";
+import { Topology } from "topojson-specification";
+import statesJson from "../../public/states-albers-10m.json";
+import countiesJson from "../../public/counties-albers-10m.json";
 
 export default function Home() {
-  return (
-    <div className="grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20 font-[family-name:var(--font-geist-sans)]">
-      <main className="flex flex-col gap-8 row-start-2 items-center sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={180}
-          height={38}
-          priority
-        />
-        <ol className="list-inside list-decimal text-sm text-center sm:text-left font-[family-name:var(--font-geist-mono)]">
-          <li className="mb-2">
-            Get started by editing{" "}
-            <code className="bg-black/[.05] dark:bg-white/[.06] px-1 py-0.5 rounded font-semibold">
-              src/app/page.tsx
-            </code>
-            .
-          </li>
-          <li>Save and see your changes instantly.</li>
-        </ol>
+  const svgRef = useRef<SVGSVGElement | null>(null);
+  const gRef = useRef<SVGGElement | null>(null);
+  const [currentStateId, setCurrentStateId] = useState<string | null>(null);
 
-        <div className="flex gap-4 items-center flex-col sm:flex-row">
-          <a
-            className="rounded-full border border-solid border-transparent transition-colors flex items-center justify-center bg-foreground text-background gap-2 hover:bg-[#383838] dark:hover:bg-[#ccc] text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={20}
-              height={20}
-            />
-            Deploy now
-          </a>
-          <a
-            className="rounded-full border border-solid border-black/[.08] dark:border-white/[.145] transition-colors flex items-center justify-center hover:bg-[#f2f2f2] dark:hover:bg-[#1a1a1a] hover:border-transparent text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 sm:min-w-44"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Read our docs
-          </a>
-        </div>
-      </main>
-      <footer className="row-start-3 flex gap-6 flex-wrap items-center justify-center">
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/file.svg"
-            alt="File icon"
-            width={16}
-            height={16}
-          />
-          Learn
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/window.svg"
-            alt="Window icon"
-            width={16}
-            height={16}
-          />
-          Examples
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/globe.svg"
-            alt="Globe icon"
-            width={16}
-            height={16}
-          />
-          Go to nextjs.org →
-        </a>
-      </footer>
+  useEffect(() => {
+    const width = 960;
+    const height = 600;
+
+    // extract the geojson for states and counties
+    const statesData = feature(
+      statesJson as unknown as Topology,
+      statesJson.objects.states
+    ) as unknown as GeoJSON.FeatureCollection<GeoJSON.Geometry>;
+
+    const countiesData = feature(
+      countiesJson as unknown as Topology,
+      countiesJson.objects.counties
+    ) as unknown as GeoJSON.FeatureCollection<GeoJSON.Geometry>;
+
+    const svg = d3
+      .select(svgRef.current)
+      .attr("width", width)
+      .attr("height", height);
+
+    const g = d3.select(gRef.current);
+
+    const projection = d3.geoIdentity().fitSize([width, height], statesData);
+    const path = d3.geoPath(projection);
+
+    // draw states
+    const drawStates = (highlightStateId: string | null = null) => {
+      g.selectAll(".state")
+        .data(statesData.features)
+        .join("path")
+        .attr("class", "state")
+        .attr("d", path)
+        .attr("fill", (d) => (d.id === highlightStateId ? "#fdd835" : "#69b3a2"))
+        .attr("stroke", "#000")
+        .attr("stroke-width", (d) => (d.id === highlightStateId ? .5 : 1))
+        .on("click", (event, d) => {
+          const stateId = d.id as string;
+          setCurrentStateId(stateId);
+          zoomToState(d, path);
+          drawCounties(stateId);
+        });
+    };
+
+    // draw counties for a state
+    const drawCounties = (stateId: string) => {
+      const stateCounties = countiesData.features.filter((county) =>
+        county.id.startsWith(stateId)
+      );
+
+      console.log("Filtered Counties for State:", stateId, stateCounties);
+
+      g.selectAll(".county")
+        .data(stateCounties)
+        .join("path")
+        .attr("class", "county")
+        .attr("d", path)
+        .attr("fill", "#b3e2cd")
+        .attr("stroke", "#000")
+        .attr("stroke-width", 0.2) 
+        .on("click", () => {
+          console.log("County clicked!");
+        });
+    };
+
+    const zoomToState = (feature, path) => {
+      const [[x0, y0], [x1, y1]] = path.bounds(feature);
+      const dx = x1 - x0;
+      const dy = y1 - y0;
+      const x = (x0 + x1) / 2;
+      const y = (y0 + y1) / 2;
+      const scale = Math.max(1, Math.min(8, 0.9 / Math.max(dx / width, dy / height)));
+      const translate = [width / 2 - scale * x, height / 2 - scale * y];
+
+      svg.transition()
+        .duration(750)
+        .call(
+          zoom.transform,
+          d3.zoomIdentity.translate(translate[0], translate[1]).scale(scale)
+        );
+
+      drawStates(feature.id as string);
+    };
+
+    const resetZoom = () => {
+      setCurrentStateId(null);
+
+      svg.transition()
+        .duration(750)
+        .call(
+          zoom.transform,
+          d3.zoomIdentity
+        );
+
+      g.selectAll(".county").remove();
+      drawStates();
+    };
+
+    const zoom = d3
+      .zoom()
+      .filter((event) => {
+        return event.type === "wheel" || event.type === "dblclick";
+      })
+      .on("zoom", (event) => {
+        g.attr("transform", event.transform);
+      });
+
+    svg.call(zoom);
+
+    drawStates();
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        resetZoom();
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, []);
+
+  return (
+    <div>
+      <svg ref={svgRef} style={{ border: "1px solid red" }}>
+        <g ref={gRef}></g>
+      </svg>
     </div>
   );
 }

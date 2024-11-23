@@ -1,4 +1,4 @@
-'use client';
+"use client";
 
 import { useEffect, useRef, useState } from "react";
 import * as d3 from "d3";
@@ -10,13 +10,14 @@ import countiesJson from "../../public/counties-albers-10m.json";
 export default function Home() {
   const svgRef = useRef<SVGSVGElement | null>(null);
   const gRef = useRef<SVGGElement | null>(null);
+  const tooltipRef = useRef<HTMLDivElement | null>(null);
   const [currentStateId, setCurrentStateId] = useState<string | null>(null);
 
   useEffect(() => {
     const width = 960;
     const height = 600;
 
-    // extract the geojson for states and counties
+    // extract geojson for states and counties
     const statesData = feature(
       statesJson as unknown as Topology,
       statesJson.objects.states
@@ -34,34 +35,49 @@ export default function Home() {
 
     const g = d3.select(gRef.current);
 
+    const tooltip = d3.select(tooltipRef.current);
+
     const projection = d3.geoIdentity().fitSize([width, height], statesData);
     const path = d3.geoPath(projection);
 
     // draw states
-    const drawStates = (highlightStateId: string | null = null) => {
+    const drawStates = () => {
       g.selectAll(".state")
         .data(statesData.features)
         .join("path")
         .attr("class", "state")
         .attr("d", path)
-        .attr("fill", (d) => (d.id === highlightStateId ? "#fdd835" : "#69b3a2"))
+        .attr("fill", "#69b3a2")
         .attr("stroke", "#000")
-        .attr("stroke-width", (d) => (d.id === highlightStateId ? .5 : 1))
+        .attr("stroke-width", 0.3)
         .on("click", (event, d) => {
           const stateId = d.id as string;
           setCurrentStateId(stateId);
           zoomToState(d, path);
           drawCounties(stateId);
+        })
+        .on("mouseover", (event, d) => {
+          const [x, y] = d3.pointer(event);
+          tooltip
+            .classed("invisible", false)
+            .style("top", `${y}px`)
+            .style("left", `${x}px`)
+            .html(`<strong>${d.properties.name}</strong>`);
+        })
+        .on("mousemove", (event) => {
+          const [x, y] = d3.pointer(event);
+          tooltip.style("top", `${y + 10}px`).style("left", `${x + 10}px`);
+        })
+        .on("mouseout", () => {
+          tooltip.classed("invisible", true);
         });
     };
 
-    // draw counties for a state
+    // draw counties
     const drawCounties = (stateId: string) => {
       const stateCounties = countiesData.features.filter((county) =>
         county.id.startsWith(stateId)
       );
-
-      console.log("Filtered Counties for State:", stateId, stateCounties);
 
       g.selectAll(".county")
         .data(stateCounties)
@@ -70,9 +86,21 @@ export default function Home() {
         .attr("d", path)
         .attr("fill", "#b3e2cd")
         .attr("stroke", "#000")
-        .attr("stroke-width", 0.2) 
-        .on("click", () => {
-          console.log("County clicked!");
+        .attr("stroke-width", 0.1)
+        .on("mouseover", (event, d) => {
+          const [x, y] = d3.pointer(event);
+          tooltip
+            .classed("invisible", false)
+            .style("top", `${y}px`)
+            .style("left", `${x}px`)
+            .html(`<strong>${d.properties.name}</strong>`);
+        })
+        .on("mousemove", (event) => {
+          const [x, y] = d3.pointer(event);
+          tooltip.style("top", `${y + 10}px`).style("left", `${x + 10}px`);
+        })
+        .on("mouseout", () => {
+          tooltip.classed("invisible", true);
         });
     };
 
@@ -82,28 +110,25 @@ export default function Home() {
       const dy = y1 - y0;
       const x = (x0 + x1) / 2;
       const y = (y0 + y1) / 2;
-      const scale = Math.max(1, Math.min(8, 0.9 / Math.max(dx / width, dy / height)));
+      const scale = Math.max(
+        1,
+        Math.min(8, 0.9 / Math.max(dx / width, dy / height))
+      );
       const translate = [width / 2 - scale * x, height / 2 - scale * y];
 
-      svg.transition()
+      svg
+        .transition()
         .duration(750)
         .call(
           zoom.transform,
           d3.zoomIdentity.translate(translate[0], translate[1]).scale(scale)
         );
-
-      drawStates(feature.id as string);
     };
 
     const resetZoom = () => {
       setCurrentStateId(null);
 
-      svg.transition()
-        .duration(750)
-        .call(
-          zoom.transform,
-          d3.zoomIdentity
-        );
+      svg.transition().duration(750).call(zoom.transform, d3.zoomIdentity);
 
       g.selectAll(".county").remove();
       drawStates();
@@ -136,10 +161,16 @@ export default function Home() {
   }, []);
 
   return (
-    <div>
-      <svg ref={svgRef} style={{ border: "1px solid red" }}>
-        <g ref={gRef}></g>
-      </svg>
+    <div className='flex justify-center items-center h-screen bg-white'>
+      <div className='relative'>
+        <svg ref={svgRef} className='border border-black'>
+          <g ref={gRef}></g>
+        </svg>
+        <div
+          ref={tooltipRef}
+          className='absolute invisible bg-white border border-gray-300 p-2 rounded text-sm pointer-events-none text-black'
+        ></div>
+      </div>
     </div>
   );
 }

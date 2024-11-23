@@ -14,8 +14,8 @@ export default function Home() {
   const [currentStateId, setCurrentStateId] = useState<string | null>(null);
 
   useEffect(() => {
-    const width = 960;
-    const height = 600;
+    const width = 1280;
+    const height = 800;
 
     // extract geojson for states and counties
     const statesData = feature(
@@ -50,6 +50,7 @@ export default function Home() {
         .attr("fill", "#69b3a2")
         .attr("stroke", "#000")
         .attr("stroke-width", 0.3)
+        .style("cursor", "pointer") // make the cursor a pointer on hover
         .on("click", (event, d) => {
           const stateId = d.id as string;
           setCurrentStateId(stateId);
@@ -57,19 +58,19 @@ export default function Home() {
           drawCounties(stateId);
         })
         .on("mouseover", (event, d) => {
-          const [x, y] = d3.pointer(event);
+          const [x, y] = d3.pointer(event, svgRef.current);
           tooltip
-            .classed("invisible", false)
-            .style("top", `${y}px`)
-            .style("left", `${x}px`)
+            .style("visibility", "visible")
+            .style("top", `${y + 15}px`)
+            .style("left", `${x + 15}px`)
             .html(`<strong>${d.properties.name}</strong>`);
         })
         .on("mousemove", (event) => {
-          const [x, y] = d3.pointer(event);
-          tooltip.style("top", `${y + 10}px`).style("left", `${x + 10}px`);
+          const [x, y] = d3.pointer(event, svgRef.current);
+          tooltip.style("top", `${y + 15}px`).style("left", `${x + 15}px`);
         })
         .on("mouseout", () => {
-          tooltip.classed("invisible", true);
+          tooltip.style("visibility", "hidden");
         });
     };
 
@@ -88,19 +89,19 @@ export default function Home() {
         .attr("stroke", "#000")
         .attr("stroke-width", 0.1)
         .on("mouseover", (event, d) => {
-          const [x, y] = d3.pointer(event);
+          const [x, y] = d3.pointer(event, svgRef.current);
           tooltip
-            .classed("invisible", false)
-            .style("top", `${y}px`)
-            .style("left", `${x}px`)
+            .style("visibility", "visible")
+            .style("top", `${y + 15}px`)
+            .style("left", `${x + 15}px`)
             .html(`<strong>${d.properties.name}</strong>`);
         })
         .on("mousemove", (event) => {
-          const [x, y] = d3.pointer(event);
-          tooltip.style("top", `${y + 10}px`).style("left", `${x + 10}px`);
+          const [x, y] = d3.pointer(event, svgRef.current);
+          tooltip.style("top", `${y + 15}px`).style("left", `${x + 15}px`);
         })
         .on("mouseout", () => {
-          tooltip.classed("invisible", true);
+          tooltip.style("visibility", "hidden");
         });
     };
 
@@ -137,11 +138,15 @@ export default function Home() {
     const zoom = d3
       .zoom()
       .filter((event) => {
-        return event.type === "wheel" || event.type === "dblclick";
+        return event.type !== "wheel" && event.type !== "touchmove";
       })
       .on("zoom", (event) => {
         g.attr("transform", event.transform);
       });
+
+    svg.on("dblclick", () => {
+      resetZoom();
+    });
 
     svg.call(zoom);
 

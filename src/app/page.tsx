@@ -40,6 +40,8 @@ export default function Home() {
     const projection = d3.geoIdentity().fitSize([width, height], statesData);
     const path = d3.geoPath(projection);
 
+    svg.on("dblclick.zoom", null);
+
     // draw states
     const drawStates = () => {
       g.selectAll(".state")
@@ -50,7 +52,7 @@ export default function Home() {
         .attr("fill", "#69b3a2")
         .attr("stroke", "#000")
         .attr("stroke-width", 0.3)
-        .style("cursor", "pointer") // make the cursor a pointer on hover
+        .style("cursor", "pointer")
         .on("click", (event, d) => {
           const stateId = d.id as string;
           setCurrentStateId(stateId);
@@ -138,15 +140,15 @@ export default function Home() {
     const zoom = d3
       .zoom()
       .filter((event) => {
+        if (event.type === "dblclick") {
+          resetZoom();
+          return false;
+        }
         return event.type !== "wheel" && event.type !== "touchmove";
       })
       .on("zoom", (event) => {
         g.attr("transform", event.transform);
       });
-
-    svg.on("dblclick", () => {
-      resetZoom();
-    });
 
     svg.call(zoom);
 

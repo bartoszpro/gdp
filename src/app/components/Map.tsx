@@ -3,13 +3,17 @@
 import React, { useEffect, useRef, useState } from "react";
 import * as d3 from "d3";
 import { getGeoData } from "../utilities/geoData";
-import Tooltip from "./Tooltip"
+import Tooltip from "./Tooltip";
+import { fetchStateData, fetchCountyData } from "../utilities/dataFetchers";
+
 const Map = () => {
   const svgRef = useRef<SVGSVGElement | null>(null);
   const gRef = useRef<SVGGElement | null>(null);
   const [currentStateId, setCurrentStateId] = useState<string | null>(null);
   const [tooltipContent, setTooltipContent] = useState<string | null>(null);
   const [tooltipPosition, setTooltipPosition] = useState({ x: 0, y: 0 });
+  const [stateData, setStateData] = useState(null);
+  const [countyData, setCountyData] = useState(null);
 
   useEffect(() => {
     const { statesData, countiesData } = getGeoData();
@@ -40,10 +44,28 @@ const Map = () => {
           setCurrentStateId(stateId);
           zoomToState(d, path);
           drawCounties(stateId);
+          showStateData(stateId);
         })
-        .on("mouseover", (event, d) => {
+        .on("mouseover", async (event, d) => {
           const [x, y] = d3.pointer(event, svgRef.current);
-          setTooltipContent(d.properties.name);
+          const normalizedStateId = d.id.padStart(2, "0") + "000";
+          console.log(`Fetching state data for GeoFips: ${normalizedStateId}`);
+          try {
+            const data = await fetchStateData(normalizedStateId);
+            const allIndustryData = data?.find(
+              (item) => item.Description === "All industry total"
+            );
+            const gdp = allIndustryData?.["2023"] || "Data unavailable";
+            setTooltipContent(`${d.properties.name} GDP: $${gdp}`);
+          } catch (error) {
+            console.error(
+              "Error fetching state data:",
+              error,
+              "GeoFips:",
+              normalizedStateId
+            );
+            setTooltipContent(`${d.properties.name} GDP: Data unavailable`);
+          }
           setTooltipPosition({ x: x + 15, y: y + 15 });
         })
         .on("mousemove", (event) => {
@@ -68,9 +90,26 @@ const Map = () => {
         .attr("fill", "#b3e2cd")
         .attr("stroke", "#000")
         .attr("stroke-width", 0.1)
-        .on("mouseover", (event, d) => {
+        .on("mouseover", async (event, d) => {
           const [x, y] = d3.pointer(event, svgRef.current);
-          setTooltipContent(d.properties.name);
+          const normalizedCountyId = d.id.padStart(5, "0");
+          console.log(`Hovering over county GeoFips: ${normalizedCountyId}`);
+          try {
+            const data = await fetchCountyData(normalizedCountyId);
+            const allIndustryData = data?.find(
+              (item) => item.Description === "All industry total"
+            );
+            const gdp = allIndustryData?.["2023"] || "Data unavailable";
+            setTooltipContent(`${d.properties.name} GDP: $${gdp}`);
+          } catch (error) {
+            console.error(
+              "Error fetching county data:",
+              error,
+              "GeoFips:",
+              normalizedCountyId
+            );
+            setTooltipContent(`${d.properties.name} GDP: Data unavailable`);
+          }
           setTooltipPosition({ x: x + 15, y: y + 15 });
         })
         .on("mousemove", (event) => {
@@ -137,13 +176,74 @@ const Map = () => {
     };
   }, []);
 
+  const showStateData = async (stateId: string) => {
+    try {
+      const normalizedStateId = stateId.padStart(2, "0") + "000";
+      const data = await fetchStateData(normalizedStateId);
+      const allIndustryData = data?.find(
+        (item) => item.Description === "All industry total"
+      );
+      const gdp = allIndustryData?.["2023"] || "Data unavailable";
+      setStateData([{ name: "All Industry Total", value: gdp }]);
+    } catch (error) {
+      console.error("Error fetching state data:", error);
+    }
+  };
+
+  const showCountyData = async (countyId: string) => {
+    try {
+      const normalizedCountyId = countyId.padStart(5, "0");
+      const data = await fetchCountyData(normalizedCountyId);
+
+      if (!data || data.length === 0) {
+        console.warn("No data found for county GeoFips:", normalizedCountyId);
+      }
+
+      const countyDataWithKey = data?.map((item, index) => ({
+        ...item,
+        key: index,
+      })); // Add unique keys
+      setCountyData(countyDataWithKey);
+    } catch (error) {
+      console.error("Error fetching county data:", error);
+    }
+  };
+
   return (
-    <div className="relative">
-      <svg ref={svgRef} className="border border-black">
+    <div className='relative'>
+      <svg ref={svgRef} className='border border-black'>
         <g ref={gRef}></g>
       </svg>
+      {stateData && (
+        <div className='absolute top-4 left-4 bg-white p-4 rounded shadow-md'>
+          <h3>State Data</h3>
+          <ul>
+            {stateData.map((item, index) => (
+              <li key={index}>
+                {item.name}: {item.value}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+      {countyData && (
+        <div className='absolute top-4 right-4 bg-white p-4 rounded shadow-md'>
+          <h3>County Data</h3>
+          <ul>
+            {countyData.map((county) => (
+              <li key={county.key}>
+                {county.name}: {county.value}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
       {tooltipContent && (
-        <Tooltip content={tooltipContent} x={tooltipPosition.x} y={tooltipPosition.y} />
+        <Tooltip
+          content={tooltipContent}
+          x={tooltipPosition.x}
+          y={tooltipPosition.y}
+        />
       )}
     </div>
   );

@@ -17,16 +17,15 @@ const Map = () => {
 
   useEffect(() => {
     const { statesData, countiesData } = getGeoData();
-    const width = 1280;
-    const height = 800;
-
+    const aspectRatio = 16 / 9;
     const svg = d3
       .select(svgRef.current)
-      .attr("width", width)
-      .attr("height", height);
+      .attr("viewBox", "0 0 1280 720")
+      .attr("preserveAspectRatio", "xMidYMid meet")
+      .classed("responsive-svg", true);
 
     const g = d3.select(gRef.current);
-    const projection = d3.geoIdentity().fitSize([width, height], statesData);
+    const projection = d3.geoIdentity().fitSize([1280, 720], statesData);
     const path = d3.geoPath(projection);
 
     const drawStates = async () => {
@@ -159,9 +158,9 @@ const Map = () => {
       const y = (y0 + y1) / 2;
       const scale = Math.max(
         1,
-        Math.min(8, 0.9 / Math.max(dx / width, dy / height))
+        Math.min(8, 0.9 / Math.max(dx / 1280, dy / 720))
       );
-      const translate = [width / 2 - scale * x, height / 2 - scale * y];
+      const translate = [1280 / 2 - scale * x, 720 / 2 - scale * y];
 
       svg
         .transition()
@@ -221,8 +220,8 @@ const Map = () => {
   };
 
   return (
-    <div className='relative'>
-      <svg ref={svgRef} className='border border-black'>
+    <div className='relative w-full h-full'>
+      <svg ref={svgRef} className='w-full h-full border border-black'>
         <g ref={gRef}></g>
       </svg>
       {tooltipContent && (

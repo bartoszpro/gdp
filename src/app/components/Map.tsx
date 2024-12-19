@@ -29,13 +29,39 @@ const Map = () => {
     const projection = d3.geoIdentity().fitSize([width, height], statesData);
     const path = d3.geoPath(projection);
 
-    const drawStates = () => {
+    const drawStates = async () => {
+      const stateGDPs: number[] = [];
+      const stateGDPMap: Record<string, number> = {};
+
+      for (const state of statesData.features) {
+        const normalizedStateId = state.id.padStart(2, "0") + "000";
+        try {
+          const data = await fetchStateData(normalizedStateId);
+          const allIndustryData = data?.find(
+            (item) => item.Description === "All industry total"
+          );
+          const gdp = allIndustryData?.["2023"] || 0;
+          stateGDPs.push(gdp);
+          stateGDPMap[state.id] = gdp;
+        } catch (error) {
+          console.error(`Error fetching GDP for state ${state.id}:`, error);
+          stateGDPMap[state.id] = 0;
+        }
+      }
+
+      const minGDP = Math.min(...stateGDPs);
+      const maxGDP = Math.max(...stateGDPs);
+      const colorScale = d3
+        .scaleLinear<string>()
+        .domain([minGDP, minGDP + (maxGDP - minGDP) * 0.2, maxGDP])
+        .range(["#ffe6e6", "#ff9999", "#cc0000"]);
+
       g.selectAll(".state")
         .data(statesData.features)
         .join("path")
         .attr("class", "state")
         .attr("d", path)
-        .attr("fill", "#69b3a2")
+        .attr("fill", (d) => colorScale(stateGDPMap[d.id] || 0))
         .attr("stroke", "#000")
         .attr("stroke-width", 0.3)
         .style("cursor", "pointer")
@@ -46,40 +72,20 @@ const Map = () => {
           drawCounties(stateId);
           showStateData(stateId);
         })
-        .on("mouseover", async (event, d) => {
-          d3.select(event.target)
-            .attr("fill", "#4d7c67")
-            .attr("stroke-width", 1);
-        
+        .on("mouseover", (event, d) => {
+          d3.select(event.target).attr("stroke-width", 1);
+
           const [x, y] = d3.pointer(event, svgRef.current);
-          const normalizedStateId = d.id.padStart(2, "0") + "000";
-          console.log(`Fetching state data for GeoFips: ${normalizedStateId}`);
-          try {
-            const data = await fetchStateData(normalizedStateId);
-            const allIndustryData = data?.find(
-              (item) => item.Description === "All industry total"
-            );
-            const gdp = allIndustryData?.["2023"] || "Data unavailable";
-            setTooltipContent(`${d.properties.name} GDP: $${gdp}`);
-          } catch (error) {
-            console.error(
-              "Error fetching state data:",
-              error,
-              "GeoFips:",
-              normalizedStateId
-            );
-            setTooltipContent(`${d.properties.name} GDP: Data unavailable`);
-          }
+          const gdp = stateGDPMap[d.id] || "Data unavailable";
+          setTooltipContent(`${d.properties.name} GDP: $${gdp}`);
           setTooltipPosition({ x: x + 15, y: y + 15 });
         })
         .on("mousemove", (event) => {
           const [x, y] = d3.pointer(event, svgRef.current);
           setTooltipPosition({ x: x + 15, y: y + 15 });
         })
-        .on("mouseout", () => {
-          d3.select(event.target)
-            .attr("fill", "#69b3a2")
-            .attr("stroke-width", 0.3)
+        .on("mouseout", (event) => {
+          d3.select(event.target).attr("stroke-width", 0.3);
           setTooltipContent(null);
         });
     };
@@ -89,50 +95,60 @@ const Map = () => {
         county.id.startsWith(stateId)
       );
 
-      g.selectAll(".county")
-        .data(stateCounties)
-        .join("path")
-        .attr("class", "county")
-        .attr("d", path)
-        .attr("fill", "#b3e2cd")
-        .attr("stroke", "#000")
-        .attr("stroke-width", 0.1)
-        .on("mouseover", async (event, d) => {
-          d3.select(event.target)
-            .attr("fill", "#8cbfa8")
-            .attr("stroke-width", 0.5);
-        
-          const [x, y] = d3.pointer(event, svgRef.current);
-          const normalizedCountyId = d.id.padStart(5, "0");
-          console.log(`Hovering over county GeoFips: ${normalizedCountyId}`);
-          try {
-            const data = await fetchCountyData(normalizedCountyId);
-            const allIndustryData = data?.find(
-              (item) => item.Description === "All industry total"
-            );
-            const gdp = allIndustryData?.["2023"] || "Data unavailable";
-            setTooltipContent(`${d.properties.name} GDP: $${gdp}`);
-          } catch (error) {
-            console.error(
-              "Error fetching county data:",
-              error,
-              "GeoFips:",
-              normalizedCountyId
-            );
-            setTooltipContent(`${d.properties.name} GDP: Data unavailable`);
+      const gdpValues: number[] = [];
+      const gdpMap: Record<string, number> = {};
+
+      stateCounties.forEach(async (county) => {
+        const normalizedCountyId = county.id.padStart(5, "0");
+        try {
+          const data = await fetchCountyData(normalizedCountyId);
+          const allIndustryData = data?.find(
+            (item) => item.Description === "All industry total"
+          );
+          const gdp = allIndustryData?.["2023"] || 0;
+          gdpValues.push(gdp);
+          gdpMap[county.id] = gdp;
+
+          if (gdpValues.length === stateCounties.length) {
+            const minGDP = Math.min(...gdpValues);
+            const maxGDP = Math.max(...gdpValues);
+            const colorScale = d3
+              .scaleLinear<string>()
+              .domain([minGDP, minGDP + (maxGDP - minGDP) * 0.2, maxGDP])
+              .range(["#ffe6e6", "#ff9999", "#cc0000"]);
+
+            g.selectAll(".county")
+              .data(stateCounties)
+              .join("path")
+              .attr("class", "county")
+              .attr("d", path)
+              .attr("fill", (d) => colorScale(gdpMap[d.id] || 0))
+              .attr("stroke", "#000")
+              .attr("stroke-width", 0.1)
+              .on("mouseover", async (event, d) => {
+                d3.select(event.target).attr("stroke-width", 0.5);
+
+                const [x, y] = d3.pointer(event, svgRef.current);
+                setTooltipContent(
+                  `${d.properties.name} GDP: $${
+                    gdpMap[d.id] || "Data unavailable"
+                  }`
+                );
+                setTooltipPosition({ x: x + 15, y: y + 15 });
+              })
+              .on("mousemove", (event) => {
+                const [x, y] = d3.pointer(event, svgRef.current);
+                setTooltipPosition({ x: x + 15, y: y + 15 });
+              })
+              .on("mouseout", () => {
+                d3.select(event.target).attr("stroke-width", 0.1);
+                setTooltipContent(null);
+              });
           }
-          setTooltipPosition({ x: x + 15, y: y + 15 });
-        })
-        .on("mousemove", (event) => {
-          const [x, y] = d3.pointer(event, svgRef.current);
-          setTooltipPosition({ x: x + 15, y: y + 15 });
-        })
-        .on("mouseout", () => {
-          d3.select(event.target)
-            .attr("fill", "#b3e2cd")
-            .attr("stroke-width", 0.1);
-          setTooltipContent(null);
-        });
+        } catch (error) {
+          console.error("Error fetching county data:", error);
+        }
+      });
     };
 
     const zoomToState = (feature, path) => {
@@ -201,25 +217,6 @@ const Map = () => {
       setStateData([{ name: "All Industry Total", value: gdp }]);
     } catch (error) {
       console.error("Error fetching state data:", error);
-    }
-  };
-
-  const showCountyData = async (countyId: string) => {
-    try {
-      const normalizedCountyId = countyId.padStart(5, "0");
-      const data = await fetchCountyData(normalizedCountyId);
-
-      if (!data || data.length === 0) {
-        console.warn("No data found for county GeoFips:", normalizedCountyId);
-      }
-
-      const countyDataWithKey = data?.map((item, index) => ({
-        ...item,
-        key: index,
-      }));
-      setCountyData(countyDataWithKey);
-    } catch (error) {
-      console.error("Error fetching county data:", error);
     }
   };
 

@@ -73,14 +73,18 @@ const Map = () => {
         })
         .on("mouseover", (event, d) => {
           d3.select(event.target).attr("stroke-width", 1);
-
-          const [x, y] = d3.pointer(event, svgRef.current);
+        
+          const x = event.clientX;
+          const y = event.clientY;
           const gdp = stateGDPMap[d.id] || "Data unavailable";
+        
           setTooltipContent(`${d.properties.name} GDP: $${gdp}`);
           setTooltipPosition({ x: x + 15, y: y + 15 });
         })
         .on("mousemove", (event) => {
-          const [x, y] = d3.pointer(event, svgRef.current);
+          const x = event.clientX;
+          const y = event.clientY;
+        
           setTooltipPosition({ x: x + 15, y: y + 15 });
         })
         .on("mouseout", (event) => {
@@ -126,8 +130,9 @@ const Map = () => {
               .attr("stroke-width", 0.1)
               .on("mouseover", async (event, d) => {
                 d3.select(event.target).attr("stroke-width", 0.5);
-
-                const [x, y] = d3.pointer(event, svgRef.current);
+              
+                const x = event.clientX;
+                const y = event.clientY;
                 setTooltipContent(
                   `${d.properties.name} GDP: $${
                     gdpMap[d.id] || "Data unavailable"
@@ -136,7 +141,9 @@ const Map = () => {
                 setTooltipPosition({ x: x + 15, y: y + 15 });
               })
               .on("mousemove", (event) => {
-                const [x, y] = d3.pointer(event, svgRef.current);
+                const x = event.clientX;
+                const y = event.clientY;
+              
                 setTooltipPosition({ x: x + 15, y: y + 15 });
               })
               .on("mouseout", () => {

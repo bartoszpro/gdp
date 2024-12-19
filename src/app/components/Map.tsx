@@ -47,6 +47,10 @@ const Map = () => {
           showStateData(stateId);
         })
         .on("mouseover", async (event, d) => {
+          d3.select(event.target)
+            .attr("fill", "#4d7c67")
+            .attr("stroke-width", 1);
+        
           const [x, y] = d3.pointer(event, svgRef.current);
           const normalizedStateId = d.id.padStart(2, "0") + "000";
           console.log(`Fetching state data for GeoFips: ${normalizedStateId}`);
@@ -73,6 +77,9 @@ const Map = () => {
           setTooltipPosition({ x: x + 15, y: y + 15 });
         })
         .on("mouseout", () => {
+          d3.select(event.target)
+            .attr("fill", "#69b3a2")
+            .attr("stroke-width", 0.3)
           setTooltipContent(null);
         });
     };
@@ -91,6 +98,10 @@ const Map = () => {
         .attr("stroke", "#000")
         .attr("stroke-width", 0.1)
         .on("mouseover", async (event, d) => {
+          d3.select(event.target)
+            .attr("fill", "#8cbfa8")
+            .attr("stroke-width", 0.5);
+        
           const [x, y] = d3.pointer(event, svgRef.current);
           const normalizedCountyId = d.id.padStart(5, "0");
           console.log(`Hovering over county GeoFips: ${normalizedCountyId}`);
@@ -117,6 +128,9 @@ const Map = () => {
           setTooltipPosition({ x: x + 15, y: y + 15 });
         })
         .on("mouseout", () => {
+          d3.select(event.target)
+            .attr("fill", "#b3e2cd")
+            .attr("stroke-width", 0.1);
           setTooltipContent(null);
         });
     };
@@ -202,7 +216,7 @@ const Map = () => {
       const countyDataWithKey = data?.map((item, index) => ({
         ...item,
         key: index,
-      })); // Add unique keys
+      }));
       setCountyData(countyDataWithKey);
     } catch (error) {
       console.error("Error fetching county data:", error);
@@ -214,30 +228,6 @@ const Map = () => {
       <svg ref={svgRef} className='border border-black'>
         <g ref={gRef}></g>
       </svg>
-      {stateData && (
-        <div className='absolute top-4 left-4 bg-white p-4 rounded shadow-md'>
-          <h3>State Data</h3>
-          <ul>
-            {stateData.map((item, index) => (
-              <li key={index}>
-                {item.name}: {item.value}
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
-      {countyData && (
-        <div className='absolute top-4 right-4 bg-white p-4 rounded shadow-md'>
-          <h3>County Data</h3>
-          <ul>
-            {countyData.map((county) => (
-              <li key={county.key}>
-                {county.name}: {county.value}
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
       {tooltipContent && (
         <Tooltip
           content={tooltipContent}

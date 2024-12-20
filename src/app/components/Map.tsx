@@ -14,6 +14,8 @@ const Map = () => {
   const [tooltipPosition, setTooltipPosition] = useState({ x: 0, y: 0 });
   const [stateData, setStateData] = useState(null);
   const [countyData, setCountyData] = useState(null);
+  const [isLoading, setIsLoading] = useState(false);
+  const [isCountyLoading, setIsCountyLoading] = useState(false);
 
   useEffect(() => {
     const { statesData, countiesData } = getGeoData();
@@ -29,6 +31,7 @@ const Map = () => {
     const path = d3.geoPath(projection);
 
     const drawStates = async () => {
+      setIsLoading(true);
       const stateGDPs: number[] = [];
       const stateGDPMap: Record<string, number> = {};
 
@@ -45,6 +48,8 @@ const Map = () => {
         } catch (error) {
           console.error(`Error fetching GDP for state ${state.id}:`, error);
           stateGDPMap[state.id] = 0;
+        } finally {
+          setIsLoading(false);
         }
       }
 
@@ -94,6 +99,7 @@ const Map = () => {
     };
 
     const drawCounties = (stateId: string) => {
+      setIsCountyLoading(true);
       const stateCounties = countiesData.features.filter((county) =>
         county.id.startsWith(stateId)
       );
@@ -150,9 +156,11 @@ const Map = () => {
                 d3.select(event.target).attr("stroke-width", 0.1);
                 setTooltipContent(null);
               });
+              setIsCountyLoading(false);
           }
         } catch (error) {
           console.error("Error fetching county data:", error);
+          setIsCountyLoading(false);
         }
       });
     };
@@ -227,8 +235,13 @@ const Map = () => {
   };
 
   return (
-    <div className='relative w-full h-full'>
-      <svg ref={svgRef} className='w-full h-full border border-black'>
+    <div className="relative w-full h-full">
+      {(isLoading || isCountyLoading) && (
+        <div className="absolute inset-0 flex justify-center items-center bg-white/75 z-10">
+          <div className="w-10 h-10 border-4 border-t-transparent border-blue-500 rounded-full animate-spin"></div>
+        </div>
+      )}
+      <svg ref={svgRef} className="w-full h-full border border-black">
         <g ref={gRef}></g>
       </svg>
       {tooltipContent && (
@@ -239,7 +252,7 @@ const Map = () => {
         />
       )}
     </div>
-  );
+  );  
 };
 
 export default Map;

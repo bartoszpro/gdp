@@ -32,137 +32,152 @@ const Map = () => {
 
     const drawStates = async () => {
       setIsLoading(true);
-      const stateGDPs: number[] = [];
-      const stateGDPMap: Record<string, number> = {};
 
-      for (const state of statesData.features) {
-        const normalizedStateId = state.id.padStart(2, "0") + "000";
-        try {
-          const data = await fetchStateData(normalizedStateId);
-          const allIndustryData = data?.find(
-            (item) => item.Description === "All industry total"
-          );
-          const gdp = allIndustryData?.["2023"] || 0;
-          stateGDPs.push(gdp);
-          stateGDPMap[state.id] = gdp;
-        } catch (error) {
-          console.error(`Error fetching GDP for state ${state.id}:`, error);
-          stateGDPMap[state.id] = 0;
-        } finally {
-          setIsLoading(false);
-        }
-      }
-
-      const minGDP = Math.min(...stateGDPs);
-      const maxGDP = Math.max(...stateGDPs);
-      const colorScale = d3
-        .scaleLinear<string>()
-        .domain([minGDP, minGDP + (maxGDP - minGDP) * 0.2, maxGDP])
-        .range(["#ffe6e6", "#ff9999", "#cc0000"]);
-
-      g.selectAll(".state")
-        .data(statesData.features)
-        .join("path")
-        .attr("class", "state")
-        .attr("d", path)
-        .attr("fill", (d) => colorScale(stateGDPMap[d.id] || 0))
-        .attr("stroke", "#000")
-        .attr("stroke-width", 0.3)
-        .style("cursor", "pointer")
-        .on("click", (event, d) => {
-          const stateId = d.id as string;
-          setCurrentStateId(stateId);
-          zoomToState(d, path);
-          drawCounties(stateId);
-          showStateData(stateId);
-        })
-        .on("mouseover", (event, d) => {
-          d3.select(event.target).attr("stroke-width", 1);
-        
-          const x = event.clientX;
-          const y = event.clientY;
-          const gdp = stateGDPMap[d.id] || "Data unavailable";
-        
-          setTooltipContent(`${d.properties.name} GDP: $${gdp}`);
-          setTooltipPosition({ x: x + 15, y: y + 15 });
-        })
-        .on("mousemove", (event) => {
-          const x = event.clientX;
-          const y = event.clientY;
-        
-          setTooltipPosition({ x: x + 15, y: y + 15 });
-        })
-        .on("mouseout", (event) => {
-          d3.select(event.target).attr("stroke-width", 0.3);
-          setTooltipContent(null);
+      try {
+        const stateGDPMap: Record<string, number> = {};
+        const stateFetchPromises = statesData.features.map(async (state) => {
+          const normalizedStateId = state.id.padStart(2, "0") + "000";
+          try {
+            const data = await fetchStateData(normalizedStateId);
+            const allIndustryData = data?.find(
+              (item) => item.Description === "All industry total"
+            );
+            const gdp = allIndustryData?.["2023"] || 0;
+            stateGDPMap[state.id] = gdp;
+          } catch (error) {
+            console.error(`Error fetching GDP for state ${state.id}:`, error);
+            stateGDPMap[state.id] = 0;
+          }
         });
+
+        await Promise.all(stateFetchPromises);
+
+        const minGDP = Math.min(...Object.values(stateGDPMap));
+        const maxGDP = Math.max(...Object.values(stateGDPMap));
+        const colorScale = d3
+          .scaleLinear<string>()
+          .domain([minGDP, minGDP + (maxGDP - minGDP) * 0.2, maxGDP])
+          .range(["#ffe6e6", "#ff9999", "#cc0000"]);
+
+        g.selectAll(".state")
+          .data(statesData.features)
+          .join("path")
+          .attr("class", "state")
+          .attr("d", path)
+          .attr("fill", (d) => colorScale(stateGDPMap[d.id] || 0))
+          .attr("stroke", "#000")
+          .attr("stroke-width", 0.3)
+          .style("cursor", "pointer")
+          .on("click", (event, d) => {
+            const stateId = d.id as string;
+            setCurrentStateId(stateId);
+            zoomToState(d, path);
+            drawCounties(stateId);
+            showStateData(stateId);
+          })
+          .on("mouseover", (event, d) => {
+            const container = svgRef.current?.getBoundingClientRect();
+            const offsetX = container?.left || 0;
+            const offsetY = container?.top || 0;
+
+            const x = event.clientX - offsetX;
+            const y = event.clientY - offsetY;
+
+            const gdp = stateGDPMap[d.id] || "Data unavailable";
+            setTooltipContent(`${d.properties.name} GDP: $${gdp}`);
+            setTooltipPosition({ x: x + 15, y: y + 15 });
+          })
+          .on("mousemove", (event) => {
+            const container = svgRef.current?.getBoundingClientRect();
+            const offsetX = container?.left || 0;
+            const offsetY = container?.top || 0;
+
+            const x = event.clientX - offsetX;
+            const y = event.clientY - offsetY;
+
+            setTooltipPosition({ x: x + 15, y: y + 15 });
+          })
+          .on("mouseout", () => {
+            setTooltipContent(null);
+          });
+      } catch (error) {
+        console.error("Error fetching states:", error);
+      } finally {
+        setIsLoading(false);
+      }
     };
 
-    const drawCounties = (stateId: string) => {
+    const drawCounties = async (stateId: string) => {
       setIsCountyLoading(true);
-      const stateCounties = countiesData.features.filter((county) =>
-        county.id.startsWith(stateId)
-      );
 
-      const gdpValues: number[] = [];
-      const gdpMap: Record<string, number> = {};
+      try {
+        const stateCounties = countiesData.features.filter((county) =>
+          county.id.startsWith(stateId)
+        );
 
-      stateCounties.forEach(async (county) => {
-        const normalizedCountyId = county.id.padStart(5, "0");
-        try {
-          const data = await fetchCountyData(normalizedCountyId);
-          const allIndustryData = data?.find(
-            (item) => item.Description === "All industry total"
-          );
-          const gdp = allIndustryData?.["2023"] || 0;
-          gdpValues.push(gdp);
-          gdpMap[county.id] = gdp;
-
-          if (gdpValues.length === stateCounties.length) {
-            const minGDP = Math.min(...gdpValues);
-            const maxGDP = Math.max(...gdpValues);
-            const colorScale = d3
-              .scaleLinear<string>()
-              .domain([minGDP, minGDP + (maxGDP - minGDP) * 0.2, maxGDP])
-              .range(["#ffe6e6", "#ff9999", "#cc0000"]);
-
-            g.selectAll(".county")
-              .data(stateCounties)
-              .join("path")
-              .attr("class", "county")
-              .attr("d", path)
-              .attr("fill", (d) => colorScale(gdpMap[d.id] || 0))
-              .attr("stroke", "#000")
-              .attr("stroke-width", 0.1)
-              .on("mouseover", async (event, d) => {
-                d3.select(event.target).attr("stroke-width", 0.5);
-              
-                const x = event.clientX;
-                const y = event.clientY;
-                setTooltipContent(
-                  `${d.properties.name} GDP: $${
-                    gdpMap[d.id] || "Data unavailable"
-                  }`
-                );
-                setTooltipPosition({ x: x + 15, y: y + 15 });
-              })
-              .on("mousemove", (event) => {
-                const x = event.clientX;
-                const y = event.clientY;
-              
-                setTooltipPosition({ x: x + 15, y: y + 15 });
-              })
-              .on("mouseout", () => {
-                d3.select(event.target).attr("stroke-width", 0.1);
-                setTooltipContent(null);
-              });
-              setIsCountyLoading(false);
+        const gdpMap: Record<string, number> = {};
+        const countyFetchPromises = stateCounties.map(async (county) => {
+          const normalizedCountyId = county.id.padStart(5, "0");
+          try {
+            const data = await fetchCountyData(normalizedCountyId);
+            const allIndustryData = data?.find(
+              (item) => item.Description === "All industry total"
+            );
+            const gdp = allIndustryData?.["2023"] || 0;
+            gdpMap[county.id] = gdp;
+          } catch (error) {
+            console.error(`Error fetching GDP for county ${county.id}:`, error);
+            gdpMap[county.id] = 0;
           }
-        } catch (error) {
-          console.error("Error fetching county data:", error);
-          setIsCountyLoading(false);
-        }
-      });
+        });
+
+        await Promise.all(countyFetchPromises);
+
+        const minGDP = Math.min(...Object.values(gdpMap));
+        const maxGDP = Math.max(...Object.values(gdpMap));
+        const colorScale = d3
+          .scaleLinear<string>()
+          .domain([minGDP, minGDP + (maxGDP - minGDP) * 0.2, maxGDP])
+          .range(["#ffe6e6", "#ff9999", "#cc0000"]);
+
+        g.selectAll(".county")
+          .data(stateCounties)
+          .join("path")
+          .attr("class", "county")
+          .attr("d", path)
+          .attr("fill", (d) => colorScale(gdpMap[d.id] || 0))
+          .attr("stroke", "#000")
+          .attr("stroke-width", 0.1)
+          .on("mouseover", (event, d) => {
+            const container = svgRef.current?.getBoundingClientRect();
+            const offsetX = container?.left || 0;
+            const offsetY = container?.top || 0;
+
+            const x = event.clientX - offsetX;
+            const y = event.clientY - offsetY;
+
+            const gdp = gdpMap[d.id] || "Data unavailable";
+            setTooltipContent(`${d.properties.name} GDP: $${gdp}`);
+            setTooltipPosition({ x: x + 15, y: y + 15 });
+          })
+          .on("mousemove", (event) => {
+            const container = svgRef.current?.getBoundingClientRect();
+            const offsetX = container?.left || 0;
+            const offsetY = container?.top || 0;
+
+            const x = event.clientX - offsetX;
+            const y = event.clientY - offsetY;
+
+            setTooltipPosition({ x: x + 15, y: y + 15 });
+          })
+          .on("mouseout", () => {
+            setTooltipContent(null);
+          });
+      } catch (error) {
+        console.error("Error fetching counties:", error);
+      } finally {
+        setIsCountyLoading(false);
+      }
     };
 
     const zoomToState = (feature, path) => {
@@ -235,13 +250,13 @@ const Map = () => {
   };
 
   return (
-    <div className="relative w-full h-full">
+    <div className='relative w-[80%] h-[80%] mx-auto'>
       {(isLoading || isCountyLoading) && (
-        <div className="absolute inset-0 flex justify-center items-center bg-white/75 z-10">
-          <div className="w-10 h-10 border-4 border-t-transparent border-blue-500 rounded-full animate-spin"></div>
+        <div className='absolute inset-0 flex justify-center items-center bg-white/75 z-10'>
+          <div className='w-10 h-10 border-4 border-t-transparent border-blue-500 rounded-full animate-spin'></div>
         </div>
       )}
-      <svg ref={svgRef} className="w-full h-full border border-black">
+      <svg ref={svgRef} className='w-full h-full border border-black'>
         <g ref={gRef}></g>
       </svg>
       {tooltipContent && (
@@ -251,8 +266,28 @@ const Map = () => {
           y={tooltipPosition.y}
         />
       )}
+      <footer className='text-center mt-4 flex justify-center items-center space-x-2'>
+        <span className='text-gray-600 text-sm'>
+          Economic data provided by the{" "}
+          <a
+            href='https://www.bea.gov'
+            target='_blank'
+            rel='noopener noreferrer'
+            className='text-blue-500 underline'
+          >
+            U.S. Bureau of Economic Analysis
+          </a>
+        </span>
+        <a href='https://www.bea.gov' target='_blank' rel='noopener noreferrer'>
+          <img
+            src='https://i.imgur.com/SCRJKfm.png'
+            alt='U.S. Bureau of Economic Analysis'
+            className='inline-block h-8'
+          />
+        </a>
+      </footer>
     </div>
-  );  
+  );
 };
 
 export default Map;

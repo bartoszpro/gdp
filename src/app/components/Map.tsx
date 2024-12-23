@@ -5,6 +5,7 @@ import * as d3 from "d3";
 import { getGeoData } from "../utilities/geoData";
 import Tooltip from "./Tooltip";
 import { fetchStateData, fetchCountyData } from "../utilities/dataFetchers";
+import PieChart from "./PieChart";
 
 const Map = () => {
   const svgRef = useRef<SVGSVGElement | null>(null);
@@ -20,6 +21,42 @@ const Map = () => {
     name: string;
     gdp: string;
   } | null>(null);
+  const [showPieChart, setShowPieChart] = useState(false);
+  const [pieChartData, setPieChartData] = useState(null);
+
+  const renderPieChart = async (stateInfo) => {
+    try {
+      const stateId = currentStateId?.padStart(2, "0") + "000";
+      const data = await fetchStateData(stateId);
+
+      const excludedCategories = [
+        "Private services-providing industries 3",
+        "Private goods-producing industries 2",
+        "Natural resources and mining",
+        "Trade",
+        "Transportation and utilities",
+        "Manufacturing and information",
+        "Addenda:",
+        "  Private industries",
+      ];
+
+      const chartData = data
+        .filter(
+          (item) =>
+            item.Description !== "All industry total" &&
+            !excludedCategories.includes(item.Description)
+        )
+        .map((item) => ({
+          label: item.Description,
+          value: parseInt(item["2023"]),
+        }));
+
+      setPieChartData(chartData);
+      setShowPieChart(true);
+    } catch (error) {
+      console.error("Error rendering pie chart:", error);
+    }
+  };
 
   useEffect(() => {
     const { statesData, countiesData } = getGeoData();
@@ -370,6 +407,19 @@ const Map = () => {
             className='inline-block h-8'
           />
         </a>
+        {showPieChart && pieChartData && (
+          <div
+            className='absolute inset-0 bg-white/90 flex justify-center items-center z-50'
+            onClick={() => setShowPieChart(false)}
+          >
+            <div
+              className='relative bg-white p-4 rounded-lg shadow-lg'
+              onClick={(e) => e.stopPropagation()}
+            >
+              <PieChart data={pieChartData} />
+            </div>
+          </div>
+        )}
       </footer>
     </div>
   );

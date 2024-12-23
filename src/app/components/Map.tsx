@@ -81,9 +81,36 @@ const Map = () => {
             try {
               const stateName = d.properties.name || "Unknown State";
               const gdp = stateGDPMap[stateId] || "Data unavailable";
+              const data = await fetchStateData(
+                stateId.padStart(2, "0") + "000"
+              );
+              const excludedCategories = [
+                "Private services-providing industries 3",
+                "Private goods-producing industries 2",
+                "Natural resources and mining",
+                "Trade",
+                "Transportation and utilities",
+                "Manufacturing and information",
+                "Addenda:",
+                "  Private industries",
+              ];
+              const industryData = data.filter(
+                (item) =>
+                  item.Description !== "All industry total" &&
+                  !excludedCategories.includes(item.Description)
+              );
 
+              const topIndustry = industryData.reduce((prev, current) =>
+                parseInt(prev["2023"]) > parseInt(current["2023"])
+                  ? prev
+                  : current
+              );
               await drawCounties(stateId);
-              setStateInfo({ name: stateName, gdp: gdp.toLocaleString() });
+              setStateInfo({
+                name: stateName,
+                gdp: gdp.toLocaleString(),
+                topIndustry: topIndustry?.Description || "Data unavailable",
+              });
             } catch (error) {
               console.error("Error fetching state or county data:", error);
             } finally {
@@ -108,7 +135,10 @@ const Map = () => {
             const x = event.clientX - offsetX;
             const y = event.clientY - offsetY;
 
-            const gdp = stateGDPMap[d.id] || "Data unavailable";
+            const gdp = stateGDPMap[d.id]
+              ? stateGDPMap[d.id].toLocaleString()
+              : "Data unavailable";
+
             setTooltipContent(`${d.properties.name} GDP: $${gdp}`);
             setTooltipPosition({ x: x + 15, y: y + 15 });
           })
@@ -181,7 +211,8 @@ const Map = () => {
             d3.select(event.target)
               .transition()
               .duration(200)
-              .attr("stroke-width", 0.5);
+              .attr("stroke-width", 0.7);
+
             const container = svgRef.current?.getBoundingClientRect();
             const offsetX = container?.left || 0;
             const offsetY = container?.top || 0;
@@ -189,7 +220,10 @@ const Map = () => {
             const x = event.clientX - offsetX;
             const y = event.clientY - offsetY;
 
-            const gdp = gdpMap[d.id] || "Data unavailable";
+            const gdp = gdpMap[d.id]
+              ? gdpMap[d.id].toLocaleString()
+              : "Data unavailable";
+
             setTooltipContent(`${d.properties.name} GDP: $${gdp}`);
             setTooltipPosition({ x: x + 15, y: y + 15 });
           })
@@ -308,7 +342,13 @@ const Map = () => {
       {stateInfo && (
         <div className='absolute top-4 left-4 bg-white shadow-lg rounded-lg p-4 border border-gray-300'>
           <h2 className='text-lg font-bold'>{stateInfo.name}</h2>
-          <p className='text-sm text-gray-600'>GDP: ${stateInfo.gdp}</p>
+          <p
+            className='text-sm cursor-pointer text-blue-500 hover:underline'
+            onClick={() => renderPieChart(stateInfo)}
+          >
+            GDP: ${stateInfo.gdp}
+          </p>
+          <p className='text-sm'>Top Industry: {stateInfo.topIndustry}</p>
         </div>
       )}
       <footer className='text-center mt-4 flex justify-center items-center space-x-2'>

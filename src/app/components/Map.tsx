@@ -74,6 +74,10 @@ const Map = () => {
             zoomToState(d, path);
             drawCounties(stateId);
             showStateData(stateId);
+            g.selectAll(".state").classed(
+              "state-darkened",
+              (state) => state.id !== stateId
+            );
           })
           .on("mouseover", (event, d) => {
             const container = svgRef.current?.getBoundingClientRect();
@@ -205,6 +209,7 @@ const Map = () => {
       setCurrentStateId(null);
       svg.transition().duration(750).call(zoom.transform, d3.zoomIdentity);
       g.selectAll(".county").remove();
+      g.selectAll(".state").classed("state-darkened", false);
       drawStates();
     };
 

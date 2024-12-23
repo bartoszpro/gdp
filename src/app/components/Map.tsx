@@ -60,7 +60,6 @@ const Map = () => {
 
   useEffect(() => {
     const { statesData, countiesData } = getGeoData();
-    const aspectRatio = 16 / 9;
     const svg = d3
       .select(svgRef.current)
       .attr("viewBox", "0 0 1280 720")
@@ -331,41 +330,40 @@ const Map = () => {
         g.attr("transform", event.transform);
       });
 
+    const handleKeyDown = (event) => {
+      if (event.key === "Escape") {
+        if (showPieChart) {
+          setShowPieChart(false);
+        } else {
+          resetZoom();
+        }
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+
     svg.call(zoom);
     drawStates();
 
-    window.addEventListener("keydown", (event) => {
-      if (event.key === "Escape") resetZoom();
-    });
-
     return () => {
-      window.removeEventListener("keydown", (event) => {
-        if (event.key === "Escape") resetZoom();
-      });
+      window.removeEventListener("keydown", handleKeyDown);
     };
-  }, []);
-
-  const showStateData = async (stateId: string) => {
-    try {
-      const normalizedStateId = stateId.padStart(2, "0") + "000";
-      const data = await fetchStateData(normalizedStateId);
-      const allIndustryData = data?.find(
-        (item) => item.Description === "All industry total"
-      );
-      const gdp = allIndustryData?.["2023"] || "Data unavailable";
-      setStateData([{ name: "All Industry Total", value: gdp }]);
-    } catch (error) {
-      console.error("Error fetching state data:", error);
-    }
-  };
+  }, [showPieChart]);
 
   return (
-    <div className='relative w-[80%] h-[80%] mx-auto'>
+    <div className='relative w-[75%] mx-auto'>
       {(isLoading || isCountyLoading) && (
         <div className='absolute inset-0 flex justify-center items-center bg-white/75 z-10'>
           <div className='w-10 h-10 border-4 border-t-transparent border-blue-500 rounded-full animate-spin'></div>
         </div>
       )}
+      <header className='flex-shrink-0 pb-4 text-center '>
+        <h1 className='text-2xl font-bold'>U.S. Economic Insights</h1>
+        <p className='text-sm text-gray-600'>
+          Explore state and county-level GDP data with interactive
+          visualizations.
+        </p>
+      </header>
       <svg ref={svgRef} className='w-full h-full border border-black'>
         <g ref={gRef}></g>
       </svg>

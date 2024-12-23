@@ -16,6 +16,10 @@ const Map = () => {
   const [countyData, setCountyData] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
   const [isCountyLoading, setIsCountyLoading] = useState(false);
+  const [stateInfo, setStateInfo] = useState<{
+    name: string;
+    gdp: string;
+  } | null>(null);
 
   useEffect(() => {
     const { statesData, countiesData } = getGeoData();
@@ -68,18 +72,35 @@ const Map = () => {
           .attr("stroke", "#000")
           .attr("stroke-width", 0.3)
           .style("cursor", "pointer")
-          .on("click", (event, d) => {
+          .on("click", async (event, d) => {
             const stateId = d.id as string;
             setCurrentStateId(stateId);
+            setIsLoading(true);
             zoomToState(d, path);
-            drawCounties(stateId);
-            showStateData(stateId);
+
+            try {
+              const stateName = d.properties.name || "Unknown State";
+              const gdp = stateGDPMap[stateId] || "Data unavailable";
+
+              await drawCounties(stateId);
+              setStateInfo({ name: stateName, gdp: gdp.toLocaleString() });
+            } catch (error) {
+              console.error("Error fetching state or county data:", error);
+            } finally {
+              setIsLoading(false);
+            }
+
             g.selectAll(".state").classed(
               "state-darkened",
               (state) => state.id !== stateId
             );
           })
           .on("mouseover", (event, d) => {
+            d3.select(event.target)
+              .transition()
+              .duration(200)
+              .attr("stroke-width", 2);
+
             const container = svgRef.current?.getBoundingClientRect();
             const offsetX = container?.left || 0;
             const offsetY = container?.top || 0;
@@ -101,7 +122,11 @@ const Map = () => {
 
             setTooltipPosition({ x: x + 15, y: y + 15 });
           })
-          .on("mouseout", () => {
+          .on("mouseout", (event) => {
+            d3.select(event.target)
+              .transition()
+              .duration(200)
+              .attr("stroke-width", 0.3);
             setTooltipContent(null);
           });
       } catch (error) {
@@ -153,6 +178,10 @@ const Map = () => {
           .attr("stroke", "#000")
           .attr("stroke-width", 0.1)
           .on("mouseover", (event, d) => {
+            d3.select(event.target)
+              .transition()
+              .duration(200)
+              .attr("stroke-width", 0.5);
             const container = svgRef.current?.getBoundingClientRect();
             const offsetX = container?.left || 0;
             const offsetY = container?.top || 0;
@@ -174,7 +203,11 @@ const Map = () => {
 
             setTooltipPosition({ x: x + 15, y: y + 15 });
           })
-          .on("mouseout", () => {
+          .on("mouseout", (event) => {
+            d3.select(event.target)
+              .transition()
+              .duration(200)
+              .attr("stroke-width", 0.1);
             setTooltipContent(null);
           });
       } catch (error) {
@@ -207,6 +240,7 @@ const Map = () => {
 
     const resetZoom = () => {
       setCurrentStateId(null);
+      setStateInfo(null);
       svg.transition().duration(750).call(zoom.transform, d3.zoomIdentity);
       g.selectAll(".county").remove();
       g.selectAll(".state").classed("state-darkened", false);
@@ -270,6 +304,12 @@ const Map = () => {
           x={tooltipPosition.x}
           y={tooltipPosition.y}
         />
+      )}
+      {stateInfo && (
+        <div className='absolute top-4 left-4 bg-white shadow-lg rounded-lg p-4 border border-gray-300'>
+          <h2 className='text-lg font-bold'>{stateInfo.name}</h2>
+          <p className='text-sm text-gray-600'>GDP: ${stateInfo.gdp}</p>
+        </div>
       )}
       <footer className='text-center mt-4 flex justify-center items-center space-x-2'>
         <span className='text-gray-600 text-sm'>

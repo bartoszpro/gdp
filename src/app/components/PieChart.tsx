@@ -90,11 +90,8 @@ const PieChart: React.FC<PieChartProps> = ({ data, onClose }) => {
   }, [data]);
 
   return (
-    <div
-      className='fixed inset-0 bg-white/90 flex justify-center items-center z-50'
-      style={{ position: "absolute" }}
-    >
-      <div className='relative'>
+    <div className='fixed inset-0 flex bg-white/90 justify-center items-center z-50'>
+      <div className='relative flex justify-center items-center'>
         <svg ref={chartRef}></svg>
         {tooltipContent && (
           <Tooltip

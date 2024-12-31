@@ -353,7 +353,7 @@ const Map = () => {
   return (
     <div className='relative w-[75%] mx-auto'>
       {(isLoading || isCountyLoading) && (
-        <div className='absolute inset-0 flex justify-center items-center bg-white/75 z-10'>
+        <div className='absolute inset-0 flex justify-center items-center bg-white/75 z-50'>
           <div className='w-10 h-10 border-4 border-t-transparent border-blue-500 rounded-full animate-spin'></div>
         </div>
       )}
@@ -375,7 +375,13 @@ const Map = () => {
         />
       )}
       {stateInfo && (
-        <div className='absolute top-4 left-4 bg-white shadow-lg rounded-lg p-4 border border-gray-300'>
+        <div
+          className='absolute bg-white shadow-lg rounded-lg p-4 border border-gray-300'
+          style={{
+            top: "80px",
+            left: "12px",
+          }}
+        >
           <h2 className='text-lg font-bold'>{stateInfo.name}</h2>
           <p
             className='text-sm cursor-pointer text-blue-500 hover:underline'
@@ -386,6 +392,7 @@ const Map = () => {
           <p className='text-sm'>Top Industry: {stateInfo.topIndustry}</p>
         </div>
       )}
+
       <footer className='text-center mt-4 flex justify-center items-center space-x-2'>
         <span className='text-gray-600 text-sm'>
           Economic data provided by the{" "}
@@ -407,7 +414,7 @@ const Map = () => {
         </a>
         {showPieChart && pieChartData && (
           <div
-            className='absolute inset-0 bg-white/90 flex justify-center items-center z-50'
+            className='absolute inset-0 flex justify-center items-center z-10'
             onClick={() => setShowPieChart(false)}
           >
             <div

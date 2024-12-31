@@ -11,6 +11,7 @@ const Tooltip = ({ content, x, y }: TooltipProps) => {
       style={{
         top: `${y}px`,
         left: `${x}px`,
+        transform: "translate(25px, 105px)",
         pointerEvents: "none",
         whiteSpace: "nowrap",
         zIndex: 10,

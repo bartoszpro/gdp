@@ -392,7 +392,7 @@ const Map = () => {
         </div>
       )}
       <header className='flex-shrink-0 pb-4 text-center '>
-        <h1 className='text-2xl font-bold'>U.S. Economic Insights</h1>
+        <h1 className='text-2xl font-bold'>2023 U.S. Economic Insights</h1>
         <p className='text-sm text-gray-600'>
           Explore state and county-level GDP data with interactive
           visualizations.

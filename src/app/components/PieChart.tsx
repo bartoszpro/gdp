@@ -9,7 +9,7 @@ interface PieChartProps {
   onClose: () => void;
 }
 
-const PieChart: React.FC<PieChartProps> = ({ data, onClose }) => {
+const PieChart: React.FC<PieChartProps> = ({ data }) => {
   const chartRef = useRef<SVGSVGElement | null>(null);
   const [tooltipContent, setTooltipContent] = useState<string | null>(null);
   const [tooltipPosition, setTooltipPosition] = useState<{
@@ -54,7 +54,7 @@ const PieChart: React.FC<PieChartProps> = ({ data, onClose }) => {
       .data(pie(data))
       .join("path")
       .attr("d", arc)
-      .attr("fill", (d) => color(d.data.label)!)
+      .attr("fill", (d) => (color(d.data.label) ?? "#ccc") as string)
       .attr("stroke", "#000")
       .attr("stroke-width", 0.5)
       .on("mouseover", (event, d) => {

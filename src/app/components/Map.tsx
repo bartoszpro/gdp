@@ -6,6 +6,9 @@ import { getGeoData } from "../utilities/geoData";
 import Tooltip from "./Tooltip";
 import { fetchStateData, fetchCountyData } from "../utilities/dataFetchers";
 import PieChart from "./PieChart";
+import type { GeoPath } from "d3";
+import type { Feature, Geometry } from "geojson";
+import Image from "next/image";
 
 const Map = () => {
   const svgRef = useRef<SVGSVGElement | null>(null);
@@ -13,18 +16,17 @@ const Map = () => {
   const [currentStateId, setCurrentStateId] = useState<string | null>(null);
   const [tooltipContent, setTooltipContent] = useState<string | null>(null);
   const [tooltipPosition, setTooltipPosition] = useState({ x: 0, y: 0 });
-  const [stateData, setStateData] = useState(null);
-  const [countyData, setCountyData] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
   const [isCountyLoading, setIsCountyLoading] = useState(false);
   const [stateInfo, setStateInfo] = useState<{
     name: string;
     gdp: string;
+    topIndustry: string;
   } | null>(null);
   const [showPieChart, setShowPieChart] = useState(false);
-  const [pieChartData, setPieChartData] = useState(null);
+  const [pieChartData, setPieChartData] = useState<{ label: string; value: number }[] | null>(null);
 
-  const renderPieChart = async (stateInfo) => {
+  const renderPieChart = async () => {
     try {
       const stateId = currentStateId?.padStart(2, "0") + "000";
       const data = await fetchStateData(stateId);
@@ -40,6 +42,10 @@ const Map = () => {
         "  Private industries",
       ];
 
+      if (!data) {
+        console.error("Data is null, cannot render pie chart.");
+        return;
+      }
       const chartData = data
         .filter(
           (item) =>
@@ -76,7 +82,11 @@ const Map = () => {
       try {
         const stateGDPMap: Record<string, number> = {};
         const stateFetchPromises = statesData.features.map(async (state) => {
-          const normalizedStateId = state.id.padStart(2, "0") + "000";
+          if (!state.id) {
+            console.error("State ID is missing for:", state);
+            return;
+          }
+          const normalizedStateId = String(state.id).padStart(2, "0") + "000";
           try {
             const data = await fetchStateData(normalizedStateId);
             const allIndustryData = data?.find(
@@ -104,7 +114,13 @@ const Map = () => {
           .join("path")
           .attr("class", "state")
           .attr("d", path)
-          .attr("fill", (d) => colorScale(stateGDPMap[d.id] || 0))
+          .attr("fill", (d) => {
+            if (!d.id) {
+              console.warn("State ID is missing for:", d);
+              return "#ccc";
+            }
+            return colorScale(stateGDPMap[d.id] || 0);
+          })
           .attr("stroke", "#000")
           .attr("stroke-width", 0.3)
           .style("cursor", "pointer")
@@ -115,7 +131,7 @@ const Map = () => {
             zoomToState(d, path);
 
             try {
-              const stateName = d.properties.name || "Unknown State";
+              const stateName = d.properties?.name || "Unknown State";
               const gdp = stateGDPMap[stateId] || "Data unavailable";
               const data = await fetchStateData(
                 stateId.padStart(2, "0") + "000"
@@ -130,11 +146,12 @@ const Map = () => {
                 "Addenda:",
                 "  Private industries",
               ];
-              const industryData = data.filter(
+              const industryData = data ? data.filter(
                 (item) =>
                   item.Description !== "All industry total" &&
                   !excludedCategories.includes(item.Description)
-              );
+              ) : [];
+              
 
               const topIndustry = industryData.reduce((prev, current) =>
                 parseInt(prev["2023"]) > parseInt(current["2023"])
@@ -155,8 +172,8 @@ const Map = () => {
 
             g.selectAll(".state").classed(
               "state-darkened",
-              (state) => state.id !== stateId
-            );
+              (state) => (state as GeoJSON.Feature).id !== stateId
+            );            
           })
           .on("mouseover", (event, d) => {
             d3.select(event.target)
@@ -171,12 +188,12 @@ const Map = () => {
             const x = event.clientX - offsetX;
             const y = event.clientY - offsetY;
 
-            const gdp = stateGDPMap[d.id]
+            const gdp = d.id && stateGDPMap[d.id]
               ? stateGDPMap[d.id].toLocaleString()
               : "Data unavailable";
 
-            setTooltipContent(`${d.properties.name} GDP: $${gdp}`);
-            setTooltipPosition({ x: x + 15, y: y + 15 });
+              setTooltipContent(`${d.properties?.name ?? "Unknown State"} GDP: $${gdp}`);
+              setTooltipPosition({ x: x + 15, y: y + 15 });
           })
           .on("mousemove", (event) => {
             const container = svgRef.current?.getBoundingClientRect();
@@ -203,16 +220,21 @@ const Map = () => {
     };
 
     const drawCounties = async (stateId: string) => {
+      
       setIsCountyLoading(true);
 
       try {
         const stateCounties = countiesData.features.filter((county) =>
-          county.id.startsWith(stateId)
-        );
+        String(county.id).startsWith(stateId)
+      );
 
         const gdpMap: Record<string, number> = {};
         const countyFetchPromises = stateCounties.map(async (county) => {
-          const normalizedCountyId = county.id.padStart(5, "0");
+          if (!county.id) {
+            console.warn("County ID is missing for:", county);
+            return;
+          }
+          const normalizedCountyId = String(county.id).padStart(5, "0");
           try {
             const data = await fetchCountyData(normalizedCountyId);
             const allIndustryData = data?.find(
@@ -240,7 +262,13 @@ const Map = () => {
           .join("path")
           .attr("class", "county")
           .attr("d", path)
-          .attr("fill", (d) => colorScale(gdpMap[d.id] || 0))
+          .attr("fill", (d) => {
+            if (!d.id) {
+              console.warn("County ID is missing for:", d);
+              return "#ccc";
+            }
+            return colorScale(gdpMap[d.id] || 0);
+          })
           .attr("stroke", "#000")
           .attr("stroke-width", 0.1)
           .on("mouseover", (event, d) => {
@@ -256,11 +284,11 @@ const Map = () => {
             const x = event.clientX - offsetX;
             const y = event.clientY - offsetY;
 
-            const gdp = gdpMap[d.id]
+            const gdp = d.id && gdpMap[d.id]
               ? gdpMap[d.id].toLocaleString()
               : "Data unavailable";
 
-            setTooltipContent(`${d.properties.name} GDP: $${gdp}`);
+            setTooltipContent(`${d.properties?.name ?? "Unknown County"} GDP: $${gdp}`);
             setTooltipPosition({ x: x + 15, y: y + 15 });
           })
           .on("mousemove", (event) => {
@@ -287,50 +315,53 @@ const Map = () => {
       }
     };
 
-    const zoomToState = (feature, path) => {
+    const zoomToState = (feature: Feature<Geometry>, path: GeoPath<SVGSVGElement, Feature<Geometry>>) => {
       const [[x0, y0], [x1, y1]] = path.bounds(feature);
       const dx = x1 - x0;
       const dy = y1 - y0;
       const x = (x0 + x1) / 2;
       const y = (y0 + y1) / 2;
-      const scale = Math.max(
-        1,
-        Math.min(8, 0.9 / Math.max(dx / 1280, dy / 720))
-      );
+      const scale = Math.max(1, Math.min(8, 0.9 / Math.max(dx / 1280, dy / 720)));
       const translate = [1280 / 2 - scale * x, 720 / 2 - scale * y];
-
-      svg
-        .transition()
-        .duration(750)
-        .call(
-          zoom.transform,
-          d3.zoomIdentity.translate(translate[0], translate[1]).scale(scale)
-        );
+    
+      if (svgRef.current) {
+        const svgSelection = d3.select(svgRef.current);
+        const t = svgSelection.transition().duration(750).ease(d3.easeCubicInOut);
+        t.call((transition) => {
+          const selection = transition.selection() as d3.Selection<SVGSVGElement, unknown, null, undefined>;
+          zoom.transform(selection, d3.zoomIdentity.translate(translate[0], translate[1]).scale(scale));
+        });
+           
+      }
     };
 
     const resetZoom = () => {
       setCurrentStateId(null);
       setStateInfo(null);
-      svg.transition().duration(750).call(zoom.transform, d3.zoomIdentity);
+      svg.transition().duration(750).call((transition) => {
+        const svgElement = transition.node() as SVGSVGElement;
+        if (svgElement) {
+          zoom.transform(d3.select(svgElement), d3.zoomIdentity);
+        }
+      });      
       g.selectAll(".county").remove();
       g.selectAll(".state").classed("state-darkened", false);
       drawStates();
     };
 
-    const zoom = d3
-      .zoom()
-      .filter((event) => {
-        if (event.type === "dblclick") {
-          resetZoom();
-          return false;
-        }
-        return event.type !== "wheel" && event.type !== "touchmove";
-      })
+    const zoom: d3.ZoomBehavior<SVGSVGElement, unknown> = d3.zoom<SVGSVGElement, unknown>()
+  .filter((event) => {
+    if (event.type === "dblclick") {
+      resetZoom();
+      return false;
+    }
+    return event.type !== "wheel" && event.type !== "touchmove";
+  })
       .on("zoom", (event) => {
         g.attr("transform", event.transform);
       });
 
-    const handleKeyDown = (event) => {
+    const handleKeyDown = (event: { key: string; }) => {
       if (event.key === "Escape") {
         if (showPieChart) {
           setShowPieChart(false);
@@ -342,7 +373,10 @@ const Map = () => {
 
     window.addEventListener("keydown", handleKeyDown);
 
-    svg.call(zoom);
+    if (svgRef.current) {
+      const svgSelection = d3.select(svgRef.current);
+      svgSelection.call(zoom);
+    }    
     drawStates();
 
     return () => {
@@ -385,7 +419,7 @@ const Map = () => {
           <h2 className='text-lg font-bold'>{stateInfo.name}</h2>
           <p
             className='text-sm cursor-pointer text-blue-500 hover:underline'
-            onClick={() => renderPieChart(stateInfo)}
+            onClick={() => renderPieChart()}
           >
             GDP: ${stateInfo.gdp}
           </p>
@@ -406,10 +440,13 @@ const Map = () => {
           </a>
         </span>
         <a href='https://www.bea.gov' target='_blank' rel='noopener noreferrer'>
-          <img
-            src='https://i.imgur.com/SCRJKfm.png'
+          <Image
+            src='/bea.png'
             alt='U.S. Bureau of Economic Analysis'
-            className='inline-block h-8'
+            width={0}
+            height={0}
+            sizes='100vw'
+            className='inline-block h-8 w-auto'
           />
         </a>
         {showPieChart && pieChartData && (
@@ -421,7 +458,7 @@ const Map = () => {
               className='relative bg-white p-4 rounded-lg shadow-lg'
               onClick={(e) => e.stopPropagation()}
             >
-              <PieChart data={pieChartData} />
+              <PieChart data={pieChartData} onClose={() => setShowPieChart(false)} />
             </div>
           </div>
         )}

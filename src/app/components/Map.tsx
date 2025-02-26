@@ -426,6 +426,9 @@ const Map = () => {
           <p className='text-sm'>Top Industry: {stateInfo.topIndustry}</p>
         </div>
       )}
+      <div className='z-49'>{showPieChart && pieChartData && (
+  <PieChart data={pieChartData} onClose={() => setShowPieChart(false)} />
+)}</div>
 
       <footer className='text-center mt-4 flex justify-center items-center space-x-2'>
         <span className='text-gray-600 text-sm'>
@@ -449,19 +452,6 @@ const Map = () => {
             className='inline-block h-8 w-auto'
           />
         </a>
-        {showPieChart && pieChartData && (
-          <div
-            className='absolute inset-0 flex justify-center items-center z-10'
-            onClick={() => setShowPieChart(false)}
-          >
-            <div
-              className='relative bg-white p-4 rounded-lg shadow-lg'
-              onClick={(e) => e.stopPropagation()}
-            >
-              <PieChart data={pieChartData} onClose={() => setShowPieChart(false)} />
-            </div>
-          </div>
-        )}
       </footer>
     </div>
   );
